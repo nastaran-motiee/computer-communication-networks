@@ -1,8 +1,33 @@
+"""
+Author: Nastaran Motiee
+"""
 import socket
 import threading
 
 # Array of 5 ports
 ports = [12345, 12346, 12347, 12348, 12349]
+
+
+def main():
+    index = int(input("Enter the index of the port to use (0-4): "))
+    own_port = ports[index]
+
+    # Create a socket object (AF_INET refers to IPv4, and SOCK_STREAM refers to TCP)
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    # Bind the socket to the host and port
+    server_socket.bind(("127.0.0.1", own_port))
+
+    # Start listening for connections with a maximum queue of 5 clients
+    server_socket.listen(5)
+    print(f"Server is listening on 127.0.0.1:{own_port}")
+
+    # Start a thread that accepts incoming connections
+    accept_thread = threading.Thread(target=accept_connections, args=(server_socket,))
+    accept_thread.start()
+
+    # Connect to other servers
+    connect_to_servers(own_port)
 
 
 def accept_connections(server_socket):
@@ -59,28 +84,6 @@ def connect_to_server(host, port):
 
     # Close the connection
     client_socket.close()
-
-
-def main():
-    index = int(input("Enter the index of the port to use (0-4): "))
-    own_port = ports[index]
-
-    # Create a socket object (AF_INET refers to IPv4, and SOCK_STREAM refers to TCP)
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    # Bind the socket to the host and port
-    server_socket.bind(("127.0.0.1", own_port))
-
-    # Start listening for connections with a maximum queue of 5 clients
-    server_socket.listen(5)
-    print(f"Server is listening on 127.0.0.1:{own_port}")
-
-    # Start a thread that accepts incoming connections
-    accept_thread = threading.Thread(target=accept_connections, args=(server_socket,))
-    accept_thread.start()
-
-    # Connect to other servers
-    connect_to_servers(own_port)
 
 
 if __name__ == "__main__":

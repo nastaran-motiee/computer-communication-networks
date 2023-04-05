@@ -1,6 +1,5 @@
 """
 Author: Nastaran Motiee
-ID:  329022727
 """
 from threading import Thread
 import socket

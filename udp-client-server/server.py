@@ -1,6 +1,5 @@
 """
 Author: Nastaran Motiee
-ID: 329022727
 """
 import threading
 import time
