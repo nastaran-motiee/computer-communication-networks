@@ -38,6 +38,7 @@ def main():
     # Create a socket and bind it to the port
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
     sock.bind(("0.0.0.0", own_port))
 
     # Start listening for incoming connections
@@ -45,12 +46,15 @@ def main():
 
     print(f"Server is listening on port:{own_port}")
 
-    # Connect to all online servers
-    connect_to_all_online_servers()
-
     # Start a thread to accept incoming connections
     accept_thread = threading.Thread(target=accept_connections, args=(sock,))
     accept_thread.start()
+
+    # Connect to all online servers
+    connect_to_all_online_servers()
+
+    accept_thread.join()
+    sock.close()
 
 
 def connect_to_all_online_servers():
@@ -68,26 +72,62 @@ def connect_to_all_online_servers():
         # Try to establish connection with a server
         try:
             msg_type, subtype, msg_length, sublen, online_servers = create_connection(addr)
-
-            # If the server we connected to is connected to other servers,
-            # then it will send their addresses, so msg_length won't be 0
-            if msg_length != 0:
-                online_servers_list = online_servers.split('\0')  # Split the string to a list of online servers
-                # For each online server address
-                for online_server_addr in online_servers_list:
-                    ip, port = online_server_addr.split(':')  # Split the address to ip and port
-                    address = (ip, int(port))  # Create a tuple of ip and port
-
-                    # Connect to the server if it's not your self and not already connected to you
-                    if address[1] != own_port and address not in connected_servers_dict.keys():
-                        create_connection(address)
-
+            handle_message_by_type(msg_type, subtype, msg_length, sublen, online_servers)
             break
 
         except ConnectionRefusedError:
             print(f"{addr} refused the connection...")
+        except OSError as os_error:
+            print(f"Could not connect to {addr}...", os_error)
     if len(connected_servers_dict) == 0:
         print("No other servers are available...")
+
+
+def handle_message_by_type(msg_type, subtype, msg_length, sublen, data, incoming_connection_address=None,
+                           incoming_connection_socket=None):
+    """
+    Handles the message based on its type
+    :param incoming_connection_socket:
+    :param incoming_connection_address:
+    :param msg_type:
+    :param subtype:
+    :param msg_length:
+    :param sublen:
+    :param data:
+    :return:
+    """
+    # If the server we connected to is connected to other servers,
+    # then it will send their addresses, so msg_length won't be 0
+    if msg_type == RESPONSE_CONNECTION_INFO and msg_length != 0:
+        online_servers_list = data.split('\0')  # Split the string to a list of online servers
+        # For each online server address
+        for online_server_addr in online_servers_list:
+            ip, port = online_server_addr.split(':')  # Split the address to ip and port
+            address = (ip, int(port))  # Create a tuple of ip and port
+
+            # Connect to the server if it's not your self and not already connected to you
+            if address[1] != own_port and address not in connected_servers_dict.keys():
+                create_connection(address)
+
+    elif msg_type == DEFINE_USERNAME:
+        # Add the address and socket of the server or user to the related dictionary
+        add_to_related_dict(subtype, incoming_connection_address, data, incoming_connection_socket)
+        print(f"connected users: {connected_users_dict}")
+        print(f"connected servers{connected_servers_dict}")
+
+    elif msg_type == REQUEST_CONNECTION_INFO:
+        # Send information about connected servers or users
+        send_info(subtype, incoming_connection_socket)
+
+    elif msg_type == SEND_MESSAGE:
+        target_username = data[:sublen]
+        msg = data[sublen:]
+        if target_username in connected_users_dict.keys():
+            print(f"Sending {msg} to {target_username}...")
+            # TODO : this is just example .. complete this for message type 3
+            connected_users_dict[target_username][1].send(msg.encode())
+
+    return
 
 
 def create_connection(addr):
@@ -146,21 +186,22 @@ def handle_incoming_connection(incoming_connection_socket, incoming_connection_a
     Handles an incoming connection.
     Receives a message from the incoming connection and sends a response.
     :param incoming_connection_socket:
+    :param incoming_connection_address:
     :return:
     """
 
     connected = True  # A flag to indicate if the connection is still active
 
     while connected:
-        # Receive a message from incoming connection
-        msg_type, subtype, length, sublen, data = receive_message(incoming_connection_socket)
-
-        if msg_type == DEFINE_USERNAME:
-            # Add the address and socket of the server or user to the related dictionary
-            add_to_related_dict(subtype, incoming_connection_address, data, incoming_connection_socket)
-        elif msg_type == REQUEST_CONNECTION_INFO:
-            # Send information about connected servers or users
-            send_info(subtype, incoming_connection_socket)
+        try:
+            # Receive a message from incoming connection
+            msg_type, subtype, length, sublen, data = receive_message(incoming_connection_socket)
+            handle_message_by_type(msg_type, subtype, length, sublen, data, incoming_connection_address,
+                                   incoming_connection_socket)
+        except Exception as e:
+            print(f"Connection with {incoming_connection_address} lost", e)
+            connected = False
+            incoming_connection_socket.close()
 
 
 def add_to_related_dict(subject, address, username, sock):
@@ -175,7 +216,7 @@ def add_to_related_dict(subject, address, username, sock):
     if subject == SERVER_RELATED:
         connected_servers_dict[address] = sock
     elif subject == USER_RELATED:
-        connected_users_dict[username] = address
+        connected_users_dict[username] = [address, sock]
 
 
 def send_info(subject, target_address):
@@ -208,6 +249,7 @@ def create_message(type, subtype, data=""):
     :param data: string
     :return:
     """
+
     length = len(data)
     sublen = 0  # Just for now sublen is 0 (it's related to the next assignment)
 
@@ -235,9 +277,14 @@ def receive_message(sock):
     :return: msg_type, subtype, sublen, data
     """
 
+    # Receive the header
     header = sock.recv(6)
+
+    # Unpack the header
     msg_type, subtype, length, sublen = struct.unpack('>BBHH', header)
+
     print(f"Received message of type {msg_type} and subtype {subtype} with length {length} and sublength {sublen}")
+    # Receive the data
     data = sock.recv(length).decode()
 
     return msg_type, subtype, length, sublen, data
