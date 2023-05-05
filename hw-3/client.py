@@ -18,12 +18,11 @@ USER_RELATED = 1
 SERVER_RELATED = 0
 
 disconnect_client = False
+server_addresses = [('127.0.0.1', 12345), ('127.0.0.1', 12346), ('127.0.0.1', 12347), ('127.0.0.1', 12348),
+                    ('127.0.0.1', 12349)]  # Predefined addresses for the servers
 
 
 def main():
-    server_addresses = [('127.0.0.1', 12345), ('127.0.0.1', 12346), ('127.0.0.1', 12347), ('127.0.0.1', 12348),
-                        ('127.0.0.1', 12349)]  # Predefined addresses for the servers
-
     # Choose a server to connect to
     server_addr_index = input("Enter the index of the server to connect to (0-4):")
 
@@ -39,37 +38,57 @@ def main():
     # Start a thread to receive messages
     receive_thread = Thread(target=receive_message, args=(sock,))
     receive_thread.start()
-
     # Start a thread to send messages
     send_thread = Thread(target=send_message, args=(sock,))
     send_thread.start()
 
+    receive_thread.join()
+    send_thread.join()
+    sock.close()
 
-def send_message(sock, subtype=SERVER_RELATED):
+
+def send_message(sock, subtype=0):
     # TODO subtype may change in the next assignment
     """
-    Sends a message to the server
+    Sends a message to (type=3)
     :param subtype:
     :param sock: socket
     :return:
     """
+    # input, o, e = select.select([sys.stdin, sock], [], [], 10)
+    # TODO : continue from here
 
-    target_username = input('Enter the username of the recipient:').strip()
-    message = input('Enter your message:').strip()
+    while True:
+        time.sleep(1)
+        target_username = input('Enter the username of the recipient:').strip()
+        message = input('Enter your message:').strip()
 
-    sublen = len(target_username)
-    length = len(message) + sublen
+        sublen = len(target_username)
+        length = len(message) + sublen
 
-    # Create the message type = 3
-    header = struct.pack('>BBHH', SEND_MESSAGE, subtype, length, sublen)
-    packed_message = header + f"{target_username}{message}".encode()
-    sock.sendall(packed_message)
+        # Create the message type = 3
+        header = struct.pack('>BBHH', SEND_MESSAGE, subtype, length, sublen)
+        packed_message = header + f"{target_username}{message}".encode()
+        sock.sendall(packed_message)
 
 
 def receive_message(sock):
     while True:
-        data = sock.recv(6)
-        print(data.decode())
+        # Receive the header
+        header = sock.recv(6)
+
+        # Unpack the header
+        msg_type, subtype, length, sublen = struct.unpack('>BBHH', header)
+
+        # Receive the data
+        data = sock.recv(length).decode()
+        msg_from = data[sublen:]
+        sender_username, msg = msg_from.split('\0')
+
+        print("You have received a message!")
+        print(f"{sender_username}: {msg}")
+
+        return msg_type, subtype, length, sublen, data
 
 
 def create_username(sock, username):

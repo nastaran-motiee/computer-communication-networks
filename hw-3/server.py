@@ -123,9 +123,21 @@ def handle_message_by_type(msg_type, subtype, msg_length, sublen, data, incoming
         target_username = data[:sublen]
         msg = data[sublen:]
         if target_username in connected_users_dict.keys():
-            print(f"Sending {msg} to {target_username}...")
-            # TODO : this is just example .. complete this for message type 3
-            connected_users_dict[target_username][1].send(msg.encode())
+            for key, value in connected_users_dict.items():
+                if value[0] == incoming_connection_address:
+                    sender_username = key
+                    msg = sender_username + '\0' + msg
+                    msg = f"{target_username}{msg}"
+
+                    break
+            packed_msg = create_message(type=SEND_MESSAGE, subtype=0, sublen=sublen, data=msg)
+            connected_users_dict[target_username][1].send(packed_msg)
+
+        else:
+            print(f"User '{target_username}' is not connected to this server...")
+            packed_msg = create_message(type=SEND_MESSAGE, subtype=0, sublen=sublen, data=msg)
+            for server in connected_servers_dict.values():
+                server.send(packed_msg)
 
     return
 
@@ -148,11 +160,11 @@ def create_connection(addr):
     connected_servers_dict[addr] = sock
 
     # Declare that you are a server (message type 2, subtype 0)
-    message = create_message(DEFINE_USERNAME, SERVER_RELATED)
+    message = create_message(type=DEFINE_USERNAME, subtype=SERVER_RELATED)
     send_message(sock, message)
 
     # Request information about other connected servers (message type 0, subtype 0)
-    message = create_message(REQUEST_CONNECTION_INFO, SERVER_RELATED)
+    message = create_message(type=REQUEST_CONNECTION_INFO, subtype=SERVER_RELATED)
     send_message(sock, message)
 
     # Receive the response
@@ -236,14 +248,15 @@ def send_info(subject, target_address):
 
     if info:
         # Convert the info to message type = 1
-        message = create_message(RESPONSE_CONNECTION_INFO, subject, info)
+        message = create_message(type=RESPONSE_CONNECTION_INFO, subtype=subject, data=info)
         # Send online_servers_str as a message
         send_message(target_address, message)
 
 
-def create_message(type, subtype, data=""):
+def create_message(type, subtype=0, sublen=0, data=""):
     """
     Creates a message
+    :param sublen:
     :param type: integer
     :param subtype: integer
     :param data: string
@@ -251,8 +264,6 @@ def create_message(type, subtype, data=""):
     """
 
     length = len(data)
-    sublen = 0  # Just for now sublen is 0 (it's related to the next assignment)
-
     # Create the message
     header = struct.pack('>BBHH', type, subtype, length, sublen)
     message = header + data.encode()
