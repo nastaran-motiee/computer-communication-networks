@@ -1,5 +1,5 @@
 """
-HW 2
+HW 3
 Author: Nastaran Motiee
 """
 import time
@@ -53,17 +53,18 @@ def send_message(sock, subtype=SERVER_RELATED):
     :param sock: socket
     :return:
     """
+    while True:
+        time.sleep(1)
+        target_username = input('Enter the username of the recipient:').strip()
+        message = input('Enter your message:').strip()
 
-    target_username = input('Enter the username of the recipient:').strip()
-    message = input('Enter your message:').strip()
+        sublen = len(target_username)
+        length = len(message) + sublen
 
-    sublen = len(target_username)
-    length = len(message) + sublen
-
-    # Create the message type = 3
-    header = struct.pack('>BBHH', SEND_MESSAGE, subtype, length, sublen)
-    packed_message = header + f"{target_username}{message}".encode()
-    sock.sendall(packed_message)
+        # Create the message type = 3
+        header = struct.pack('>BBHH', SEND_MESSAGE, subtype, length, sublen)
+        packed_message = header + f"{target_username}{message}".encode()
+        sock.sendall(packed_message)
 
 
 def receive_message(sock):
