@@ -5,8 +5,6 @@ Author: Nastaran Motiee
 import time
 from threading import Thread
 import socket
-import sys
-import select
 import struct
 
 # Message types
@@ -20,6 +18,8 @@ SERVER_RELATED = 0
 disconnect_client = False
 server_addresses = [('127.0.0.1', 12345), ('127.0.0.1', 12346), ('127.0.0.1', 12347), ('127.0.0.1', 12348),
                     ('127.0.0.1', 12349)]  # Predefined addresses for the servers
+
+messages = []  # List of messages received.
 
 
 def main():
@@ -38,16 +38,28 @@ def main():
     # Start a thread to receive messages
     receive_thread = Thread(target=receive_message, args=(sock,))
     receive_thread.start()
-    # Start a thread to send messages
-    send_thread = Thread(target=send_message, args=(sock,))
-    send_thread.start()
 
-    receive_thread.join()
-    send_thread.join()
-    sock.close()
+    while True:
+        read_or_write = input(
+            '1. Enter 1 - to send a message.\n2. Enter 2 - to read your messages. \n3. Enter 3- to exit.\n').strip()
+        if read_or_write == '1':
+            # Start a thread to send messages
+            send_thread = Thread(target=send_message, args=(sock,))
+            send_thread.start()
+            send_thread.join()
+        elif read_or_write == '2':
+            if len(messages) == 0:
+                print('\033[0;32mYou have no messages.\033[0;0m')
+            else:
+                # Print the messages
+                for msg in messages:
+                    print(msg)
+        elif read_or_write == '3':
+            sock.close()
+            break
 
 
-def send_message(sock, subtype=0):
+def send_message(sock, subtype=1):
     # TODO subtype may change in the next assignment
     """
     Sends a message to (type=3)
@@ -58,24 +70,33 @@ def send_message(sock, subtype=0):
     # input, o, e = select.select([sys.stdin, sock], [], [], 10)
     # TODO : continue from here
 
-    while True:
-        time.sleep(1)
-        target_username = input('Enter the username of the recipient:').strip()
-        message = input('Enter your message:').strip()
+    target_username = input('Enter the username of the recipient:').strip()
+    message = input('Enter your message:').strip()
 
-        sublen = len(target_username)
-        length = len(message) + sublen
+    sublen = len(target_username)
+    length = len(message) + sublen
 
-        # Create the message type = 3
-        header = struct.pack('>BBHH', SEND_MESSAGE, subtype, length, sublen)
-        packed_message = header + f"{target_username}{message}".encode()
-        sock.sendall(packed_message)
+    # Create the message type = 3
+    header = struct.pack('>BBHH', SEND_MESSAGE, subtype, length, sublen)
+    packed_message = header + f"{target_username}{message}".encode()
+    sock.sendall(packed_message)
 
 
 def receive_message(sock):
     while True:
         # Receive the header
-        header = sock.recv(6)
+        try:
+            header = sock.recv(6)
+        except ConnectionAbortedError:
+            print('Connection aborted.')
+            break
+        except Exception as e:
+            print(e)
+            break
+
+        if len(header) == 0:
+            print('Connection closed.')
+            continue
 
         # Unpack the header
         msg_type, subtype, length, sublen = struct.unpack('>BBHH', header)
@@ -85,8 +106,8 @@ def receive_message(sock):
         msg_from = data[sublen:]
         sender_username, msg = msg_from.split('\0')
 
-        print("You have received a message!")
-        print(f"{sender_username}: {msg}")
+        messages.append(f"{sender_username}: {msg}")
+        print("length" + str(len(messages)))
 
         return msg_type, subtype, length, sublen, data
 

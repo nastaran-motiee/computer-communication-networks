@@ -53,9 +53,6 @@ def main():
     # Connect to all online servers
     connect_to_all_online_servers()
 
-    accept_thread.join()
-    sock.close()
-
 
 def connect_to_all_online_servers():
     """
@@ -96,8 +93,6 @@ def handle_message_by_type(msg_type, subtype, msg_length, sublen, data, incoming
     :param data:
     :return:
     """
-    # If the server we connected to is connected to other servers,
-    # then it will send their addresses, so msg_length won't be 0
     if msg_type == RESPONSE_CONNECTION_INFO and msg_length != 0:
         online_servers_list = data.split('\0')  # Split the string to a list of online servers
         # For each online server address
@@ -128,14 +123,15 @@ def handle_message_by_type(msg_type, subtype, msg_length, sublen, data, incoming
                     sender_username = key
                     msg = sender_username + '\0' + msg
                     msg = f"{target_username}{msg}"
-
                     break
             packed_msg = create_message(type=SEND_MESSAGE, subtype=0, sublen=sublen, data=msg)
-            connected_users_dict[target_username][1].send(packed_msg)
+            ans = connected_users_dict[target_username][1].send(packed_msg)
+
 
         else:
             print(f"User '{target_username}' is not connected to this server...")
             packed_msg = create_message(type=SEND_MESSAGE, subtype=0, sublen=sublen, data=msg)
+
             for server in connected_servers_dict.values():
                 server.send(packed_msg)
 
