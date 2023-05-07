@@ -87,8 +87,8 @@ def receive_message(sock):
         # Receive the header
         try:
             header = sock.recv(6)
+
             # Unpack the header
-            print(header)
             if len(header):
                 msg_type, subtype, length, sublen = struct.unpack('>BBHH', header)
 
