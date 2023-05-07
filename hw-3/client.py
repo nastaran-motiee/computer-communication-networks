@@ -88,7 +88,7 @@ def receive_message(sock):
                 msg_from = data[sublen:]
                 sender_username, msg = msg_from.split('\0')
 
-                messages.append(f"\033[0;31m{sender_username}:\033[0;0m {msg}")
+                messages.append(f"{GREEN_COLOR}{sender_username}: {RESET_COLOR}{msg}")
         except ConnectionAbortedError:
             print('Connection aborted.')
             break
