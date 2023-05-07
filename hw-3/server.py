@@ -68,8 +68,8 @@ def connect_to_all_online_servers():
 
         # Try to establish connection with a server
         try:
-            msg_type, subtype, msg_length, sublen, online_servers = create_connection(addr)
-            handle_message_by_type(msg_type, subtype, msg_length, sublen, online_servers)
+            m_sock = create_connection(addr)
+            handle_connection(m_sock, addr)
             break
 
         except ConnectionRefusedError:
@@ -106,36 +106,33 @@ def handle_message_by_type(msg_type, subtype, msg_length, sublen, data, incoming
 
     elif msg_type == DEFINE_USERNAME:
         # Add the address and socket of the server or user to the related dictionary
-        add_to_related_dict(subtype, incoming_connection_address, data, incoming_connection_socket)
-        print(f"connected users: {connected_users_dict}")
-        print(f"connected servers{connected_servers_dict}")
+        add_to_related_dict(subject=subtype, address=incoming_connection_address,
+                            username=data, sock=incoming_connection_socket)
 
     elif msg_type == REQUEST_CONNECTION_INFO:
         # Send information about connected servers or users
         send_info(subtype, incoming_connection_socket)
 
     elif msg_type == SEND_MESSAGE:
+        print("data:", data)
         target_username = data[:sublen]
         msg = data[sublen:]
+        for key, value in connected_users_dict.items():
+            if value[0] == incoming_connection_address:
+                sender_username = key
+                msg = sender_username + '\0' + msg
+                break
+
+        msg = f"{target_username}{msg}"
+        packed_msg = create_message(type=SEND_MESSAGE, subtype=0, sublen=sublen, data=msg)
         if target_username in connected_users_dict.keys():
-            for key, value in connected_users_dict.items():
-                if value[0] == incoming_connection_address:
-                    sender_username = key
-                    msg = sender_username + '\0' + msg
-                    msg = f"{target_username}{msg}"
-                    break
-            packed_msg = create_message(type=SEND_MESSAGE, subtype=0, sublen=sublen, data=msg)
-            ans = connected_users_dict[target_username][1].send(packed_msg)
-
-
+            connected_users_dict[target_username][1].send(packed_msg)
         else:
             print(f"User '{target_username}' is not connected to this server...")
-            packed_msg = create_message(type=SEND_MESSAGE, subtype=0, sublen=sublen, data=msg)
-
-            for server in connected_servers_dict.values():
-                server.send(packed_msg)
-
-    return
+            print(incoming_connection_address)
+            for (server_addr, server_socket) in connected_servers_dict.items():
+                if server_addr != incoming_connection_address:
+                    server_socket.send(packed_msg)
 
 
 def create_connection(addr):
@@ -166,7 +163,7 @@ def create_connection(addr):
     # Receive the response
     msg_type, subtype, length, sublen, data = receive_message(sock)
 
-    return msg_type, subtype, length, sublen, data
+    return sock
 
 
 def accept_connections(server_socket):
@@ -184,12 +181,12 @@ def accept_connections(server_socket):
         print(f"Connection from {incoming_connection_address} established")
 
         # Start a thread to handle the client
-        incoming_connection_thread = threading.Thread(target=handle_incoming_connection,
+        incoming_connection_thread = threading.Thread(target=handle_connection,
                                                       args=(incoming_connection_socket, incoming_connection_address,))
         incoming_connection_thread.start()
 
 
-def handle_incoming_connection(incoming_connection_socket, incoming_connection_address):
+def handle_connection(incoming_connection_socket, incoming_connection_address):
     """
     Handles an incoming connection.
     Receives a message from the incoming connection and sends a response.
@@ -204,8 +201,10 @@ def handle_incoming_connection(incoming_connection_socket, incoming_connection_a
         try:
             # Receive a message from incoming connection
             msg_type, subtype, length, sublen, data = receive_message(incoming_connection_socket)
-            handle_message_by_type(msg_type, subtype, length, sublen, data, incoming_connection_address,
-                                   incoming_connection_socket)
+            handle_message_by_type(msg_type=msg_type, subtype=subtype, msg_length=length, sublen=sublen, data=data,
+                                   incoming_connection_address=incoming_connection_address,
+                                   incoming_connection_socket=incoming_connection_socket)
+
         except Exception as e:
             print(f"Connection with {incoming_connection_address} lost", e)
             connected = False
@@ -287,14 +286,16 @@ def receive_message(sock):
     # Receive the header
     header = sock.recv(6)
 
-    # Unpack the header
-    msg_type, subtype, length, sublen = struct.unpack('>BBHH', header)
+    if len(header) != 0:
+        # Unpack the header
+        msg_type, subtype, length, sublen = struct.unpack('>BBHH', header)
 
-    print(f"Received message of type {msg_type} and subtype {subtype} with length {length} and sublength {sublen}")
-    # Receive the data
-    data = sock.recv(length).decode()
+        print(f"Received message of type {msg_type} and subtype {subtype} with length {length} and sublength {sublen}")
+        # Receive the data
+        data = sock.recv(length).decode()
+        print(data)
 
-    return msg_type, subtype, length, sublen, data
+        return msg_type, subtype, length, sublen, data
 
 
 if __name__ == "__main__":

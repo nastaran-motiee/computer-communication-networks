@@ -41,7 +41,7 @@ def main():
 
     while True:
         read_or_write = input(
-            '1. Enter 1 - to send a message.\n2. Enter 2 - to read your messages. \n3. Enter 3- to exit.\n').strip()
+            '1. Enter 1 - to send a message.\n2. Enter 2 - to read new messages. \n3. Enter 3 - to exit.\n').strip()
         if read_or_write == '1':
             # Start a thread to send messages
             send_thread = Thread(target=send_message, args=(sock,))
@@ -54,6 +54,7 @@ def main():
                 # Print the messages
                 for msg in messages:
                     print(msg)
+                    messages.pop()
         elif read_or_write == '3':
             sock.close()
             break
@@ -67,8 +68,6 @@ def send_message(sock, subtype=1):
     :param sock: socket
     :return:
     """
-    # input, o, e = select.select([sys.stdin, sock], [], [], 10)
-    # TODO : continue from here
 
     target_username = input('Enter the username of the recipient:').strip()
     message = input('Enter your message:').strip()
@@ -87,29 +86,23 @@ def receive_message(sock):
         # Receive the header
         try:
             header = sock.recv(6)
+            # Unpack the header
+            print(header)
+            if len(header):
+                msg_type, subtype, length, sublen = struct.unpack('>BBHH', header)
+
+                # Receive the data
+                data = sock.recv(length).decode()
+                msg_from = data[sublen:]
+                sender_username, msg = msg_from.split('\0')
+
+                messages.append(f"\033[0;31m{sender_username}:\033[0;0m {msg}")
         except ConnectionAbortedError:
             print('Connection aborted.')
             break
         except Exception as e:
             print(e)
             break
-
-        if len(header) == 0:
-            print('Connection closed.')
-            continue
-
-        # Unpack the header
-        msg_type, subtype, length, sublen = struct.unpack('>BBHH', header)
-
-        # Receive the data
-        data = sock.recv(length).decode()
-        msg_from = data[sublen:]
-        sender_username, msg = msg_from.split('\0')
-
-        messages.append(f"{sender_username}: {msg}")
-        print("length" + str(len(messages)))
-
-        return msg_type, subtype, length, sublen, data
 
 
 def create_username(sock, username):
