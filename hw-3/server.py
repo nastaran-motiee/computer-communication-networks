@@ -3,8 +3,19 @@ HW 3
 """
 
 import socket
+import sys
 import threading
 import struct
+import atexit
+
+# Colors
+RED_COLOR = "\033[0;31m"
+GREEN_COLOR = "\033[0;32m"
+YELLOW_COLOR = "\033[0;33m"
+BLUE_COLOR = "\033[0;34m"
+PURPLE_COLOR = "\033[0;35m"
+CYAN_COLOR = "\033[0;36m"
+RESET_COLOR = "\033[0;0m"
 
 # Message types
 REQUEST_CONNECTION_INFO = 0
@@ -20,37 +31,60 @@ addresses = [('127.0.0.1', 12345), ('127.0.0.1', 12346), ('127.0.0.1', 12347), (
              ('127.0.0.1', 12349)]  # Predefined addresses for the servers
 connected_servers_dict = {}  # Global dictionary to store server addresses and sockets
 connected_users_dict = {}  # Global dictionary to store user addresses and sockets
+sockets = []  # List of sockets
+stop_event = threading.Event()  # Global stop event
 
 
-def main():
+def create_socket():
     """
-    Main function
+    Creates a socket and binds it to the port
     :return:
     """
-
-    # Get the index of the port to use from the user
-    index = int(input("Enter the index of the port to use (0-4): "))
-
-    global own_port
-    own_port = addresses[index][1]
-
-    # Create a socket and bind it to the port
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+    sockets.append(sock)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
     sock.bind(("0.0.0.0", own_port))
+    return sock
 
-    # Start listening for incoming connections
-    sock.listen(5)
 
-    print(f"Server is listening on port:{own_port}")
+@atexit.register
+def exit_handler():
+    """
+    Exit handler.
+    This function is called automatically when the program exits.
+    :return:
+    """
+    print("Closing all sockets...")
+    for s in sockets:
+        s.close()
 
-    # Start a thread to accept incoming connections
-    accept_thread = threading.Thread(target=accept_connections, args=(sock,))
-    accept_thread.start()
 
-    # Connect to all online servers
-    connect_to_all_online_servers()
+def create_connection(addr):
+    """
+    :param addr: address of the server to connect to
+    :return: msg_type, subtype, sublen, data(online servers)
+    """
+
+    sock = create_socket()
+    sock.connect(addr)
+
+    print(f"Connected to {addr}")
+
+    # Add the servers socket to the connected servers dictionary
+    connected_servers_dict[addr] = sock
+
+    # Declare that you are a server (message type 2, subtype 0)
+    message = create_message(type=DEFINE_USERNAME, subtype=SERVER_RELATED)
+    sock.sendall(message)
+
+    # Request information about other connected servers (message type 0, subtype 0)
+    message = create_message(type=REQUEST_CONNECTION_INFO, subtype=SERVER_RELATED)
+    sock.sendall(message)
+
+    # Receive the response
+    msg_type, subtype, length, sublen, data = receive_message(sock)
+
+    return sock
 
 
 def connect_to_all_online_servers():
@@ -134,37 +168,6 @@ def handle_message_by_type(msg_type, subtype, msg_length, sublen, data, incoming
                     server_socket.send(packed_msg)
 
 
-def create_connection(addr):
-    """
-    :param addr: address of the server to connect to
-    :return: msg_type, subtype, sublen, data(online servers)
-    """
-
-    # Create a socket and connect to another server
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("0.0.0.0", own_port))
-    sock.connect(addr)
-
-    print(f"Connected to {addr}")
-
-    # Add the servers socket to the connected servers dictionary
-    connected_servers_dict[addr] = sock
-
-    # Declare that you are a server (message type 2, subtype 0)
-    message = create_message(type=DEFINE_USERNAME, subtype=SERVER_RELATED)
-    send_message(sock, message)
-
-    # Request information about other connected servers (message type 0, subtype 0)
-    message = create_message(type=REQUEST_CONNECTION_INFO, subtype=SERVER_RELATED)
-    send_message(sock, message)
-
-    # Receive the response
-    msg_type, subtype, length, sublen, data = receive_message(sock)
-
-    return sock
-
-
 def accept_connections(server_socket):
     """
     Accepts incoming connections
@@ -172,17 +175,21 @@ def accept_connections(server_socket):
     :return:
     """
 
-    while True:
-        # Accept the connection
-        incoming_connection_socket, incoming_connection_address = server_socket.accept()
+    while not stop_event.is_set():
+        try:
+            # Accept the connection
+            incoming_connection_socket, incoming_connection_address = server_socket.accept()
 
-        # Print the address of the client
-        print(f"Connection from {incoming_connection_address} established")
+            # Print the address of the client
+            print(f"Connection from {incoming_connection_address} established")
 
-        # Start a thread to handle the client
-        incoming_connection_thread = threading.Thread(target=handle_connection,
-                                                      args=(incoming_connection_socket, incoming_connection_address,))
-        incoming_connection_thread.start()
+            # Start a thread to handle the client
+            incoming_connection_thread = threading.Thread(target=handle_connection,
+                                                          args=(incoming_connection_socket,
+                                                                incoming_connection_address,))
+            incoming_connection_thread.start()
+        except socket.timeout:
+            pass
 
 
 def handle_connection(incoming_connection_socket, incoming_connection_address):
@@ -225,11 +232,11 @@ def add_to_related_dict(subject, address, username, sock):
         connected_users_dict[username] = [address, sock]
 
 
-def send_info(subject, target_address):
+def send_info(subject, sock):
     """
     Sends information about connected servers or users to the target address according to the subject
     :param subject: ABOUT_CONNECTED_SERVERS or ABOUT_CONNECTED_USERS
-    :param target_address: The address to send the information to
+    :param sock:
     :return:
     """
     info = None
@@ -244,7 +251,7 @@ def send_info(subject, target_address):
         # Convert the info to message type = 1
         message = create_message(type=RESPONSE_CONNECTION_INFO, subtype=subject, data=info)
         # Send online_servers_str as a message
-        send_message(target_address, message)
+        sock.send(message)
 
 
 def create_message(type, subtype=0, sublen=0, data=""):
@@ -263,16 +270,6 @@ def create_message(type, subtype=0, sublen=0, data=""):
     message = header + data.encode()
 
     return message
-
-
-def send_message(sock, message):
-    """
-    Sends a message
-    :param sock:
-    :param message:
-    :return:
-    """
-    sock.sendall(message)
 
 
 def receive_message(sock):
@@ -297,5 +294,43 @@ def receive_message(sock):
         return msg_type, subtype, length, sublen, data
 
 
+def main():
+    """
+    Main function
+    :return:
+    """
+
+    # Get the index of the port to use from the user
+    index = int(input("Enter the index of the port to use (0-4): "))
+
+    global own_port
+    own_port = addresses[index][1]
+
+    sock = create_socket()
+    sock.listen(5)  # Start listening for incoming connections
+    sock.settimeout(1)  # Set a timeout for the accept method
+
+    print(f"Server is listening on port:{own_port}")
+
+    # Start a thread to accept incoming connections
+    accept_thread = threading.Thread(target=accept_connections, args=(sock,))
+    accept_thread.start()
+
+    # Connect to all online servers
+    connect_to_all_online_servers()
+    accept_thread.join()
+
+
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Keyboard interrupt...")
+    except ConnectionRefusedError:
+        print("Connection refused...")
+    except Exception as e:
+        print(e)
+    finally:
+        stop_event.set()
+        print("Closing server...")
+        sys.exit(0)
