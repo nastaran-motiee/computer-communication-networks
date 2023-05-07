@@ -1,17 +1,14 @@
 """
 HW 1
-Author: Nastaran Motiee
 """
 from threading import Thread
 import socket
 import sys
 import select
 
-
 server_addr = ('127.0.0.1', 9999)
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
 my_name = input('Enter your name: ')
-
 disconnect_client = False
 
 sock.sendto(my_name.encode(), server_addr)
@@ -39,5 +36,3 @@ except KeyboardInterrupt:
     sock.close()
 except Exception as e:
     print("Error occurred", e)
-
-

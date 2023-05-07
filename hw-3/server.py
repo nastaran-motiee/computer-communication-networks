@@ -1,6 +1,5 @@
 """
 HW 3
-Author: Nastaran Motiee
 """
 
 import socket

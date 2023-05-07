@@ -1,6 +1,5 @@
 """
 HW 3
-Author: Nastaran Motiee
 """
 import time
 from threading import Thread
