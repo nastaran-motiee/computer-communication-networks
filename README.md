@@ -47,13 +47,13 @@ A simple TCP client-server application.
 2. After the four fields appears a sequence of bytes with a length of 'len' filed, which will be called data later (
    in homework 4).
     - #### Message types:
-        -[X] ``` type = 0 ```: Request to receive information about network connections:
+        - [X] ``` type = 0 ```: Request to receive information about network connections:
             - The sublen field – reserved for the future (currently zero).
             - No data.
             - In the subtype field we will transfer the type of connections we are interested in:
                 - subtupe = 0 :  Information about servers that the server is connected to them.
                 - sybtype = 1 : Information about users that are connected to the server.
-        -[X] ```type = 1``` : Response to a request for information about network connections:
+        - [X] ```type = 1``` : Response to a request for information about network connections:
             - The sublen field – reserved for the future (currently zero)
             - The subtype field refers to the request we answer to (this field will have the same value as the
               subtype in
