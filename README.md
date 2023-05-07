@@ -68,7 +68,7 @@ A simple TCP client-server application.
             - for server the subtype will be 0 and for users the subtype will be 1.
             - The sublen field – reserved for the future (currently zero)
             - In data, we will transfer the username if subtype = 1, otherwise data will be empty.
-        -[X] ```type = 3``` : Sending a message.
+        - [X] ```type = 3``` : Sending a message.
             - The subtype field – reserved for the future (currently zero)
             - The sublen field – the length of the username (in bytes after encoding)
             - The data field - In data we will transfer the username of the user we want to send the message to,
