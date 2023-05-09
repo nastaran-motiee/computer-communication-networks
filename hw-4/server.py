@@ -1,5 +1,5 @@
 """
-HW 3
+HW 4
 """
 
 import socket
@@ -124,7 +124,6 @@ def handle_message_by_type(msg_type, subtype, msg_length, sublen, data, incoming
     :param data:
     :return:
     """
-    print("data" + data)
     if msg_type == RESPONSE_CONNECTION_INFO:
 
         online_servers_list = data.split('\0')  # Split the string to a list of online servers
@@ -207,7 +206,6 @@ def handle_connection(incoming_connection_socket, incoming_connection_address):
 
             # Receive a message from incoming connection
             msg_type, subtype, length, sublen, data = receive_message(incoming_connection_socket)
-            print("data" + data)
             handle_message_by_type(msg_type=msg_type, subtype=subtype, msg_length=length, sublen=sublen, data=data,
                                    incoming_connection_address=incoming_connection_address,
                                    incoming_connection_socket=incoming_connection_socket)
@@ -261,8 +259,10 @@ def send_info(subject, sock):
     if info:
         # Convert the info to message type = 1
         message = create_message(type=RESPONSE_CONNECTION_INFO, subtype=subject, data=info)
+    else:
+        message = create_message(type=RESPONSE_CONNECTION_INFO, subtype=subject, data="\0")
         # Send online_servers_str as a message
-        sock.send(message)
+    sock.send(message)
 
 
 def create_message(type, subtype=0, sublen=0, data=""):
