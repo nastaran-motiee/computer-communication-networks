@@ -101,7 +101,6 @@ def handle_message(msg_type, data, sublen):
         sender_username, msg = msg_from.split('\0')
         messages.append(f"\033[0;31m{sender_username}:\033[0;0m {msg}")
     elif msg_type == RESPONSE_CONNECTION_INFO:
-        print(f"data: {data}")
         connected_servers = []
         if data != '\0':
             online_servers_list = data.split('\0')  # Split the string to a list of online servers
