@@ -1,5 +1,5 @@
 """
-HW 3
+HW 4
 """
 import time
 import threading
@@ -35,10 +35,10 @@ server_addresses = [('127.0.0.1', 12345), ('127.0.0.1', 12346), ('127.0.0.1', 12
 
 messages = []  # List of messages received.
 sockets = []  # List of sockets
-ip = None  # The ip of the client
-port = None  # The port of the client
-
+current_master_server_addr = None  # The address of the current master server
 stop_event = threading.Event()
+rtt_list_completed = threading.Event()
+rtt_list = []  # List of RTT results
 
 
 def send_message(sock, subtype=1):
@@ -83,7 +83,7 @@ def receive_message(sock):
             break
 
 
-def create_and_bind_socket():
+def create_socket():
     """
     Creates a socket
     :return:
@@ -91,7 +91,6 @@ def create_and_bind_socket():
     # Create a socket and connect to the server
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # sock.bind(('0.0.0.0', port))
     sockets.append(sock)
     return sock
 
@@ -102,16 +101,21 @@ def handle_message(msg_type, data, sublen):
         sender_username, msg = msg_from.split('\0')
         messages.append(f"\033[0;31m{sender_username}:\033[0;0m {msg}")
     elif msg_type == RESPONSE_CONNECTION_INFO:
-        online_servers_list = data.split('\0')  # Split the string to a list of online servers
-        # For each online server address
+        print(f"data: {data}")
         connected_servers = []
-        for online_server_addr in online_servers_list:
-            ip, port = online_server_addr.split(':')  # Split the address to ip and port
-            address = (ip, int(port))  # Create a tuple of ip and port
-            connected_servers.append(address)  # Add the address to the list of connected servers
+        if data != '\0':
+            online_servers_list = data.split('\0')  # Split the string to a list of online servers
+            # For each online server address
 
+            for online_server_addr in online_servers_list:
+                ip, port = online_server_addr.split(':')  # Split the address to ip and port
+                address = (ip, int(port))  # Create a tuple of ip and port
+                connected_servers.append(address)  # Add the address to the list of connected servers
+        connected_servers.append(current_master_server_addr)
+        global rtt_list
         rtt_list = connect_to_all_servers_and_measure_rtt(connected_servers)
         print(f"RTT results: {rtt_list}")
+        rtt_list_completed.set()
 
 
 def create_username(sock, username):
@@ -155,7 +159,7 @@ def connect_to_server_and_measure_rtt(addr, results_queue):
     :param results_queue:
     :return:
     """
-    sock = create_and_bind_socket()
+    sock = create_socket()
     try:
         sock.connect(addr)
         msg = create_message(ECHO)
@@ -216,21 +220,15 @@ def close_sockets():
 
 
 def main():
-    global ip, port
-    port = 60000
+    global current_master_server_addr
     # Choose a server to connect to
     server_addr_index = input("Enter the index of the server to connect to (0-4):").strip()
 
     # Create a socket and connect to the server
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # sock.bind(('0.0.0.0', port))
     sock.connect(server_addresses[int(server_addr_index)])
-
-    # If this is the first connection, store the client IP and port in the global variables
-    ip, port = sock.getsockname()
-    print(f"Client IP: {ip}, Client port: {port}")
-
+    current_master_server_addr = server_addresses[int(server_addr_index)]
     res = connect_to_all_servers_and_measure_rtt([server_addresses[int(server_addr_index)]])
 
     print(f"RTT to server {server_addresses[int(server_addr_index)]} is {res[0][1]}")
@@ -245,6 +243,7 @@ def main():
     receive_thread.start()
 
     while True:
+        time.sleep(0.5)
         read_or_write = input(
             CYAN_COLOR + '1. Enter 1 - to send a message.\n2. Enter 2 - to read new messages. \n3. Enter 3 - to '
                          'exit.\n4. Enter 4 - to connect to best server.\n' + RESET_COLOR).strip()
@@ -268,6 +267,25 @@ def main():
             # Request information about other connected servers (message type 0, subtype 0)
             message = create_message(type=REQUEST_CONNECTION_INFO, subtype=SERVER_RELATED)
             sock.send(message)
+            while not rtt_list_completed.is_set():
+                pass
+            rtt_list_completed.clear()
+            # Choose the best server
+            best_server = min(rtt_list, key=lambda x: x[1])
+            print(f"Best server is {best_server[0]} with RTT {best_server[1]}")
+            if best_server[0] != current_master_server_addr:
+                sock.close()
+                sock = create_socket()
+                sock.connect(best_server[0])
+                current_master_server_addr = best_server[0]
+                print(f"Connected to {best_server[0]}")
+                # Create a username
+                username = input('Enter your username:').strip()
+                create_username(sock, username)
+                # Start a thread to receive messages
+                receive_thread = Thread(target=receive_message, args=(sock,))
+                receive_thread.start()
+
     receive_thread.join()
 
 
