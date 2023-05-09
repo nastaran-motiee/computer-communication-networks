@@ -80,10 +80,6 @@ def create_connection(addr):
     # Request information about other connected servers (message type 0, subtype 0)
     message = create_message(type=REQUEST_CONNECTION_INFO, subtype=SERVER_RELATED)
     sock.sendall(message)
-
-    # Receive the response
-    msg_type, subtype, length, sublen, data = receive_message(sock)
-
     return sock
 
 

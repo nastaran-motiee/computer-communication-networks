@@ -82,9 +82,6 @@ def create_connection(addr):
     message = create_message(type=REQUEST_CONNECTION_INFO, subtype=SERVER_RELATED)
     sock.sendall(message)
 
-    # Receive the response
-    msg_type, subtype, length, sublen, data = receive_message(sock)
-
     return sock
 
 
@@ -103,7 +100,7 @@ def connect_to_all_online_servers():
         # Try to establish connection with a server
         try:
             m_sock = create_connection(addr)
-            handle_connection(m_sock, addr)
+            threading.Thread(target=handle_connection, args=(m_sock, addr)).start()
             break
 
         except ConnectionRefusedError:
@@ -127,9 +124,11 @@ def handle_message_by_type(msg_type, subtype, msg_length, sublen, data, incoming
     :param data:
     :return:
     """
+    print("data" + data)
+    if msg_type == RESPONSE_CONNECTION_INFO:
 
-    if msg_type == RESPONSE_CONNECTION_INFO and msg_length != 0:
         online_servers_list = data.split('\0')  # Split the string to a list of online servers
+        print(f"Online servers: {online_servers_list}")
         # For each online server address
         for online_server_addr in online_servers_list:
             ip, port = online_server_addr.split(':')  # Split the address to ip and port
@@ -191,6 +190,7 @@ def accept_connections(server_socket):
                                                                 incoming_connection_address,))
             incoming_connection_thread.start()
         except socket.timeout:
+            print("Socket timed out...")
             pass
 
 
@@ -202,20 +202,18 @@ def handle_connection(incoming_connection_socket, incoming_connection_address):
     :param incoming_connection_address:
     :return:
     """
-
-    connected = True  # A flag to indicate if the connection is still active
-
-    while connected:
+    while True:
         try:
+
             # Receive a message from incoming connection
             msg_type, subtype, length, sublen, data = receive_message(incoming_connection_socket)
+            print("data" + data)
             handle_message_by_type(msg_type=msg_type, subtype=subtype, msg_length=length, sublen=sublen, data=data,
                                    incoming_connection_address=incoming_connection_address,
                                    incoming_connection_socket=incoming_connection_socket)
 
         except Exception as e:
             print(f"Connection with {incoming_connection_address} lost", e)
-            connected = False
             incoming_connection_socket.close()
 
             # Remove the user from the connected users dictionary
@@ -227,6 +225,7 @@ def handle_connection(incoming_connection_socket, incoming_connection_address):
             # Remove the server from the connected servers dictionary
             if incoming_connection_address in connected_servers_dict.keys():
                 connected_servers_dict.pop(incoming_connection_address)
+            break
 
 
 def add_to_related_dict(subject, address, username, sock):
@@ -300,9 +299,10 @@ def receive_message(sock):
         if msg_type == ECHO:
             sock.sendall(struct.pack('>BBHH', ECHO, 0, 0, 0))
 
-        print(f"Received message of type {msg_type} and subtype {subtype} with length {length} and sublength {sublen}")
         # Receive the data
         data = sock.recv(length).decode()
+        print(
+            f"Received message of type {msg_type} and subtype {subtype} with length {length} and sublength {sublen} and data {data}")
 
         return msg_type, subtype, length, sublen, data
 
@@ -321,7 +321,7 @@ def main():
 
     sock = create_socket()
     sock.listen(5)  # Start listening for incoming connections
-    sock.settimeout(1)  # Set a timeout for the accept method
+    # sock.settimeout(1)  # Set a timeout for the accept method
 
     print(f"Server is listening on port:{own_port}")
 
