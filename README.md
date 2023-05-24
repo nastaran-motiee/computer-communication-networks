@@ -1,6 +1,6 @@
 # computer-communication-networks
 
-This is a repository for all the assignments of Computer Communication Networks course at SCE (Sami Shamoon College of
+This repository includes all the assignments of Computer Communication Networks course at SCE (Sami Shamoon College of
 Engineering).
 
 ## Assignments
