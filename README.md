@@ -1,14 +1,17 @@
-# computer-communication-networks
+# Computere Networking
 
 This repository contains the lab assignments of Computer Communication Networks course at SCE (Sami Shamoon College of
 Engineering).
+
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
+
 
 ## Assignments
 
 ### [hw-1] udp client-server:
 
-1. Implement server / client in UDP.
-2. Support multiple client connections to the server.
+1. Implements server / client in UDP.
+2. Supports multiple client connections to the server.
 3. A client sends a message to the client through the server.
 4. The server maintains a data structure between customer names and their addresses.
 
@@ -23,8 +26,8 @@ A simple TCP client-server application.
 
 #### The server:
 
-1. Define an organized and planned protocol (TCP protocol) for the P2P network.
-2. Implement a P2P network between the servers.
+1. Defines an organized and planned protocol (TCP protocol) for the P2P network.
+2. Implements a P2P network between the servers.
 3. The server will receive the port index (0-4) from the user's input, then it starts waiting for connections on this
    port.
 4. There is a predefined array of addresses in the code that the server tries to connect to them. (Notice that all the
@@ -77,7 +80,6 @@ A simple TCP client-server application.
               sender to the beginning of the message (sender + 0'\b + reciever), and accordingly updates the sublen.
 
 #### implementation notes:
-
 - In this exercise the reading and writing of the protocol was implemented.
 - There are two dictionaries: a server dictionary and a user dictionary.
 - Basic client program communicating with TCP protocol.
@@ -86,3 +88,17 @@ A simple TCP client-server application.
     - For this assignment only, each time the server gets a message of type = 2, only if the username is not in the
       user dictionary, the server will send the the message to all the other servers in the network.
 
+
+### [hw-4]
+- Additional features to previous assignments
+
+#### implementation notes:
+
+- After connecting a client to the server, the client asks the server for a list of servers in the network
+His.
+- Added echo-type messages to the protocol whose purpose is simply to send message without data, and immediately send an echo message back. This is how you can calculate time difference with a casual message.
+- The client connects to all servers, and sends them an echo message and checks which RTT is lowest.
+- The client disconnects the connection with the servers except for the server with the lowest RTT.
+- Since the client connections are made in separate threads, synchronization mechanism was added, which performs a join above all others.
+- Added support for RTT calculation.
+- Handling disconnection.
