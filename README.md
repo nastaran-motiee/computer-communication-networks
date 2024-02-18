@@ -3,6 +3,8 @@
 This repository contains solutions for lab assignments of Computer Communication Networks course at SCE (Sami Shamoon College of
 Engineering).
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Assignments
 
 ### [hw-1] udp client-server:
